@@ -1,0 +1,195 @@
+/*---- About me ----*/
+
+#about{
+    display: flex;  
+    width: 100%;  
+    background-color: #000000;
+    background-image: linear-gradient(rgba(0, 0, 0, 0.7),rgba(4,9,30,0.7)), url(Images/coding3.jpg);
+    background-repeat: no-repeat;
+    background-position: center;
+    justify-content: center;
+    position: relative;
+    align-items: center;
+}
+
+#aboutmetxtbox{
+    padding-top: 10%;
+}
+
+.myOffer{
+    width: 100%;
+    margin: auto;
+    text-align: center;
+    padding-top: 0;
+    background-color: transparent;
+    background-repeat: no-repeat;
+    
+    
+}
+h3{
+    font-size: clamp(.98rem, 8vw - 2rem, 36px);;
+
+    font-weight: 600;
+}
+p{
+    color: #ffffff;
+    font-size: clamp(.98rem, 8vw - 2rem, 50px);;
+    font-weight: 300;
+    line-height: 22px;
+    padding: 10px;
+}
+.row{   
+    display: flex;
+    justify-content: space-between;
+}
+
+.offer-col{
+    flex-basis: 31%;
+    border-radius: 10px;
+    margin-bottom: 5%;
+    padding: 20px 12px;
+    box-sizing: border-box;
+    color: #fff;
+    line-height: 45px;
+}
+
+
+.offer-col h5{
+    color: darkgoldenrod;
+    text-align: center;
+}
+.General-Skills{
+    padding: 0;
+    margin: 0;
+}
+.Programming-Skills{
+    padding: 0;
+    margin: 0;
+}
+.Unreal-Skills{
+    padding: 0;
+    margin: 0;
+    
+}
+.General-Skills li{
+    font-size: clamp(.98rem, 8vw - 2rem, 30px);;
+   text-align:  center;
+}
+.Programming-Skills li {
+    font-size: clamp(.98rem, 8vw - 2rem, 30px);;
+    text-align:  center;
+
+}
+
+.offer-col ul{
+    animation: fadeIn 15s;
+    -webkit-animation: fadeIn 15s;
+    -moz-animation: fadeIn 15s;
+    -o-animation: fadeIn 15s;
+    -ms-animation: fadeIn 15s;
+}
+
+.Unreal-Skills li {
+    font-size: clamp(.98rem, 8vw - 2rem, 30px);;
+
+    text-align:  center;
+
+}
+
+@keyframes fadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@-moz-keyframes fadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@-webkit-keyframes fadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@-o-keyframes fadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@-ms-keyframes fadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+.offer-col li {
+    list-style: none;
+}
+
+h4{
+    text-align: center;
+    font-weight: 600;
+    margin: 10px 0;
+    text-decoration: underline;
+    font-size: 50px;
+}
+.offer-col:hover{
+    box-shadow: 0 0 20px 0px rgba(255, 255, 255, 0.2) ;
+
+}
+
+.About-Me h5{
+    color: darkgoldenrod;
+    font-size: clamp(.98rem, 8vw - 2rem, 80px);;
+
+    text-align: center;
+}
+
+.col-sm-4{
+    padding: 60px;
+}
+
+
+.All-Skills{
+    top: 0;
+    height: 100%;
+}
+.About-Me p{
+    text-align: left;
+    color: rgb(255, 255, 255);
+    font-size: clamp(.98rem, 8vw - 2rem, 30px);;
+
+    line-height: 3vh;
+    padding-left: 65px;
+    font-family: "Times New Roman", Times, serif;
+
+}
+.Skills .skill-header{
+    font-size: clamp(.98rem, 8vw - 2rem, 30px);;
+
+    color: darkgoldenrod;
+    list-style: none;
+    font-weight: bolder;
+    padding-left: 30px;
+    text-align: center;
+
+}
+
+.Skills .skill-notes{
+    text-align: left;
+    font-size: clamp(.98rem, 8vw - 2rem, 30px);;
+
+    color: rgb(255, 255, 255);
+    line-height: 3vh;
+    list-style: none;
+    font-family: "Times New Roman", Times, serif;
+}
+
+@media (max-width: 1368px)
+{
+    .About-Me{
+        padding-top: 60px;
+    }
+    .col-md-4 {
+        flex: 0 0 auto;
+         width: 100%;
+    }
+}

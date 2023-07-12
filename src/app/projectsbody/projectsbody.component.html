@@ -1,0 +1,28 @@
+
+<main class="container-fluid d-flex  justify-content-center " id="project">
+    <div class="infotxt">Click Image for more Infomation.</div>
+      <div class="slider image-box image-centered"  id="image-box">
+          <span style="--i:1" class="mySlides"><img  [src]=  "FirstFiveImgSrc" (click)="showCategory('FirstFive', 'embed', 'http://pixidev.azurewebsites.net/VisualNovel/FirstFive')"></span>
+          <span style="--i:2" class="mySlides"><img  [src]="WebsiteImgSrc" (click)="showCategory('Website', 'image', WebsiteImgSrc)"></span>
+          <span style="--i:3" class="mySlides"><img [src]="ProjectHunterImgSc" (click)="showCategory('ProjectHunter', 'video', RandomLootSrc)"></span>
+          <span style="--i:4" class="mySlides comingsoon"><img [src]="ComingSoonImgSrc" (click)="showCategory('ComingSoon', 'image', ComingSoonImgSrc)"></span>
+          <span style="--i:5" class="mySlides comingsoon"><img [src]="ComingSoonImgSrc" (click)="showCategory('ComingSoon','image', ComingSoonImgSrc)"></span>
+          <span style="--i:6" class="mySlides comingsoon"><img [src]="ComingSoonImgSrc" (click)="showCategory('ComingSoon','image', ComingSoonImgSrc)"></span>
+          <span style="--i:7" class="mySlides comingsoon"><img [src]="ComingSoonImgSrc" (click)="showCategory('ComingSoon','image', ComingSoonImgSrc)"></span>
+          <span style="--i:8" class="mySlides comingsoon"><img [src]="ComingSoonImgSrc" (click)="showCategory('ComingSoon','image', ComingSoonImgSrc)"></span>
+      </div>
+      <div id="category-info" class="category-info">
+        <button id="close-button" class="close-button " (click)="hideCategoryInfo()">X</button>
+        <div class="category-info-header">
+          <h2 id="category-title" class="category-title"></h2><h2 class="spacer">|</h2>
+          <h2 id ="category-team" class="category-team"></h2><h2 class="spacer">|</h2>
+          <h2 id ="category-engine" class="category-engine"></h2><h2 class="spacer">|</h2>
+          <h2 id = "category-genre" class="category-genre"></h2><h2 class="spacer"></h2><br>
+          <h2 id = "category-tenure" class="category-tenure"></h2><h2 class="spacer">|</h2>
+          <h2 id = "category-platform" class="category-platform"></h2>
+        </div>
+          <p id="category-description" class="category-description"></p>
+          
+      </div>
+     
+</main>

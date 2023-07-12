@@ -1,0 +1,880 @@
+
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Components/InteractableManager.h"
+#include "Character/ALSPlayerController.h"
+#include "Interactable/InteractableParent.h"
+#include "Library/InteractUtilityFunctionLibrary.h"
+#include "Interactable/UI/InteractableWidget.h"
+#include "Engine/EngineTypes.h"
+#include "Interfaces/ObjectInteraction.h"
+
+#include "Interfaces/InteractableInterface.h"
+
+// Sets default values for this component's properties
+UInteractableManager::UInteractableManager()
+{
+	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
+	// off to improve performance if you don't need them.
+	PrimaryComponentTick.bCanEverTick = true;
+
+	// ...
+}
+
+
+// Called when the game starts
+void UInteractableManager::BeginPlay()
+{
+	Super::BeginPlay();
+	EventInitialize();
+	if (IsValid(GetOwner()))
+	{
+		GetOwner()->Tags.AddUnique(InteractableTag);
+		if (DestroyAfterInteract)
+		{
+			GetOwner()->Tags.AddUnique(DestroyableTag);
+		}
+	}
+	// ...
+
+}
+
+void UInteractableManager::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	// Add your implementation logic here
+}
+
+
+
+void UInteractableManager::ToggleIsInteractable(bool Condition)
+{
+	if (IsInteractable != Condition)
+	{
+		IsInteractable = Condition;
+	}
+}
+
+// Called every frame
+void UInteractableManager::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	// ...
+}
+
+void UInteractableManager::EventInitialize()
+{
+	if (IInteractable* OwnerAsInterface = Cast<IInteractable>(GetOwner()))
+	{
+		OwnerAsInterface->BPIInitialize();
+	}
+}
+
+void UInteractableManager::SetupInteractableReferences(USphereComponent* InteractableAreas,
+	UWidgetComponent* InteractionWidgets, TSet<UPrimitiveComponent*> HighlightableObject)
+{
+	InteractableArea = InteractableAreas;
+	InteractionWidget = InteractionWidgets;
+	for (UPrimitiveComponent* Component : HighlightableObject)
+	{
+		Component->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Block);
+		HighlightableObjects.Add(Component);
+	}
+}
+
+void UInteractableManager::EventToggleHighlight(bool Highlight, AActor* Interactor)
+{
+	if (IsValid(InteractionWidget))
+	{
+		InteractionWidget->SetVisibility(Highlight);
+		for (UPrimitiveComponent* Component : HighlightableObjects)
+		{
+			Component->SetRenderCustomDepth(Highlight);
+		}
+
+		if (AALSPlayerController* AlsPlayerController = Cast<AALSPlayerController>(Interactor))
+		{
+			SetWidgetLocalOwner(AlsPlayerController);
+		}
+	}
+}
+
+void UInteractableManager::EventPreInteraction(AActor* Interactor)
+{
+	IObjectInteraction* OwnerAsInterface = Cast<IObjectInteraction>(Interactor);
+	IInteractable* OwnerInterfaceInteractable = Cast<IInteractable>(Interactor);
+	if (IsValid(Interactor))
+	{
+		CurrentInteractor = Interactor;
+		if (OwnerInterfaceInteractable)
+		{
+			OwnerInterfaceInteractable->BPIClientStartInteraction(Interactor, false);
+			switch (InputType)
+			{
+			case EInteractType::Single:
+				if (OwnerAsInterface)
+				{
+					OwnerAsInterface->StartInteractionWithObject(this);
+				}
+				break;
+			case EInteractType::Holding:
+				EventDurationPress();
+				break;
+			case EInteractType::Mashing:
+				EventMultiplePress();
+				break;
+			default:
+				break;
+			}
+		}
+	}
+
+}
+
+void UInteractableManager::SetWidgetLocalOwner(AALSPlayerController* OwnerController)
+{
+	if (GetWorld() && OwnerController && OwnerController->IsLocalController())
+	{
+		if (WidgetClass && InteractionWidgetRef)
+		{
+			InteractionWidgetRef = CreateWidget<UInteractableWidget>(OwnerController, WidgetClass);
+			InteractionWidgetRef->InteractionDescription->SetText(DefaultInteractionText);
+			InteractionWidgetRef->InputType = InputType;
+			if (InteractionWidgetRef)
+			{
+
+				
+				InteractionWidget->SetWidget(InteractionWidgetRef);
+				InteractionWidget->SetOwnerPlayer(InteractionWidgetRef->GetOwningLocalPlayer());
+			}
+		}
+
+	}
+}
+
+// On Interaction
+
+void UInteractableManager::EventInteraction(AActor* Interactor, bool WasHeld)
+{
+	if (IsValid(Interactor))
+	{
+		CurrentInteractor = Interactor;
+		AlreadyInteracted = true;
+
+		if (IInteractable* OwnerAsInterface = Cast<IInteractable>(GetOwner()))
+		{
+			if (OwnerAsInterface)
+			{
+				OwnerAsInterface->BPIInteraction(Interactor, WasHeld);
+				RemoveInteractionByResponse();
+			}
+		}
+	}
+}
+
+void UInteractableManager::EventClientInteraction(AActor* Interactor, bool WasHeld)
+{
+	AActor* Owner = GetOwner();
+	if (IsValid(Owner))
+	{
+		// Cast the owner to ICharacterInterface
+		IInteractable* OwnerAsInterface = Cast<IInteractable>(Owner);
+		if (OwnerAsInterface)
+		{
+			// Call Initialize on the interface
+			OwnerAsInterface->BPIClientStartInteraction(Interactor, WasHeld);
+		}
+	}
+}
+
+void UInteractableManager::EventAssociatedActorInteraction(AActor* Interactor)
+{
+	CurrentInteractor = Interactor;
+
+	TArray<AActor*> KeysArray;
+	AssociatedInteractableActors.GetKeys(KeysArray);
+
+	for (AActor* Key : KeysArray)
+	{
+		if (UInteractableManager* KeysInteractable = Key->FindComponentByClass<UInteractableManager>())
+		{
+			UInteractableManager* RefernceComponent = KeysInteractable;
+			RefernceComponent->EventCheckForInteractionWithAssociate(Interactor);
+		}
+	}
+}
+
+void UInteractableManager::EventCheckForInteractionWithAssociate(AActor* Interactor)
+{
+	if (IsValid(Interactor))
+	{
+		CurrentInteractor = Interactor;
+
+		if (!CheckForAssociatedActors)
+		{
+			EventInteraction(Interactor, false);
+
+			if (!RemoveAssociatedInteractablesOnComplete)
+			{
+				for (const auto& Pair : AssociatedInteractableActors)
+				{
+					AActor* Key = Pair.Key;
+					int const Value = Pair.Value;
+					TObjectPtr<UInteractableManager> ReturnInteractable = Key->FindComponentByClass<UInteractableManager>();
+
+					ReturnInteractable->EventRemoveInteraction();
+
+					switch (InteractableResponse)
+					{
+					case EInteractableResponseType::OnlyOnce:
+						ReturnInteractable->InteractableResponse = EInteractableResponseType::OnlyOnce;
+						break;
+
+					case EInteractableResponseType::Temporary:
+						// Assuming ToggleCanBeReInitialized is a member function of ReturnInteractable's owning class
+						ReturnInteractable->ToggleCanBeReInitialized(false);
+						break;
+
+					default:
+						break;
+					}
+				}
+			}
+		}
+	}
+
+}
+
+void UInteractableManager::EventEndInteraction(AActor* Interactor)
+{
+	AActor* Owner = GetOwner();
+	if (IsValid(Owner))
+	{
+		// Cast the owner to ICharacterInterface
+		IInteractable* OwnerAsInterface = Cast<IInteractable>(Owner);
+		if (OwnerAsInterface)
+		{
+			OwnerAsInterface->BPIEndInteraction(Interactor);
+
+		}
+	}
+}
+
+void UInteractableManager::EventClientEndInteraction(AActor* Interactor)
+{
+	AActor* Owner = GetOwner();
+	if (IsValid(Owner))
+	{
+		// Cast the owner to ICharacterInterface
+		IInteractable* OwnerAsInterface = Cast<IInteractable>(Owner);
+		if (OwnerAsInterface)
+		{
+			OwnerAsInterface->BPIClientEndInteraction(Interactor);
+
+		}
+	}
+}
+
+void UInteractableManager::EventAssociatedActorEndInteraction()
+{
+	TArray<AActor*> KeysArray;
+	AssociatedInteractableActors.GetKeys(KeysArray);
+	for (int i = 0; i < KeysArray.Num(); i++)
+	{
+		if (KeysArray[i])
+		{
+			TObjectPtr<AActor> Key = KeysArray[i];
+			if (UInteractableManager* KeysInteractable = Key->FindComponentByClass<UInteractableManager>())
+			{
+				KeysInteractable->EventEndInteraction(CurrentInteractor);
+			}
+		}
+	}
+}
+
+void UInteractableManager::EventRemoveInteraction_Implementation()
+{
+	EventClientRemoveInteraction();
+}
+
+
+void UInteractableManager::EventClientRemoveInteraction()
+{
+	AActor* Owner = GetOwner();
+	if (IsValid(Owner))
+	{
+		// Cast the owner to ICharacterInterface
+		IInteractable* OwnerAsInterface = Cast<IInteractable>(Owner);
+		if (OwnerAsInterface)
+		{
+			OwnerAsInterface->BPIRemoveInteraction();
+
+		}
+	}
+	IsInteractable = false;
+	InteractableArea = nullptr;
+	if (DestroyAfterInteract)
+	{
+		GetOwner()->Destroy();
+	}
+}
+
+void UInteractableManager::EventRe_Initialize()
+{
+	if (InteractableResponse == EInteractableResponseType::Temporary)
+	{
+		if (CanBeReInitialized)
+		{
+			AActor* Owner = GetOwner();
+			if (IsValid(Owner))
+			{
+				// Cast the owner to ICharacterInterface
+				IInteractable* OwnerAsInterface = Cast<IInteractable>(Owner);
+				if (OwnerAsInterface)
+				{
+					OwnerAsInterface->BPIInitialize();
+
+				}
+			}
+			ToggleIsInteractable(true);
+			if (IsValid(InteractionWidgetRef))
+			{
+				InteractionWidgetRef->SetVisibility(ESlateVisibility::Visible);
+			}
+		}
+	}
+}
+
+void UInteractableManager::EventRe_InitializeAssociatedActors()
+{
+	TArray<AActor*> KeysArray;
+	AssociatedInteractableActors.GetKeys(KeysArray);
+	for (int i = 0; i < KeysArray.Num(); i++)
+	{
+		if (KeysArray[i])
+		{
+			TObjectPtr<AActor> Key = KeysArray[i];
+			if (UInteractableManager* KeysInteractable = Key->FindComponentByClass<UInteractableManager>())
+			{
+				KeysInteractable->ToggleIsInteractable(true);
+				KeysInteractable->EventRe_Initialize();
+			}
+		}
+	}
+}
+
+void UInteractableManager::EventGameLoaded()
+{
+	AActor* Owner = GetOwner();
+	if (IsValid(Owner))
+	{
+		// Cast the owner to ICharacterInterface
+		IInteractable* OwnerAsInterface = Cast<IInteractable>(Owner);
+		if (OwnerAsInterface)
+		{
+			OwnerAsInterface->BPIGameLoad();
+			if (IsValid(InteractionWidgetRef))
+			{
+				InteractionWidgetRef->SetVisibility(ESlateVisibility::Visible);
+			}
+		}
+	}
+}
+
+void UInteractableManager::EventMultiplePress()
+{
+	{
+		float Variable;
+		if (MashingInput(10, Variable))
+		{
+			FillInteractionWidgetBorder(Variable);
+		}
+		else
+		{
+			FillInteractionWidgetBorder(Variable);
+
+			// Create a delay of 0.2f seconds
+			FTimerHandle InteractionDelayTimerHandle;
+			GetWorld()->GetTimerManager().SetTimer(InteractionDelayTimerHandle, [this]() {
+				if (CurrentInteractor != nullptr)
+				{
+					UFunction* StartInteractionFunc = CurrentInteractor->GetClass()->FindFunctionByName(TEXT("StartInteractionWithObject"));
+					if (StartInteractionFunc != nullptr)
+					{
+						CurrentInteractor->ProcessEvent(StartInteractionFunc, this);
+					}
+				}
+				}, 0.2f, false);
+		}
+	}
+}
+
+void UInteractableManager::EventDurationPress()
+{
+	FKey PressedKey;
+	 GetWorld()->GetTimerManager().SetTimer(KeyDownTimer, this, &UInteractableManager::IsKeyDown, 0.005f, true);
+	if(GetPressedKeyByActionName("Interaction", PressedKey))
+	{
+		 PressedInteractionKey = PressedKey;
+	}
+	PressedInteractionKey = FKey("E");
+
+}
+
+void UInteractableManager::IsKeyDown()
+{
+	// Get the reference to the owning player
+	AActor* OwningPlayer = GetOwner();
+
+	// Call GetCurrentInteractableObject from UInteractUtilityFunctionLibrary
+	UInteractableManager* CurrentInteractable = UInteractUtilityFunctionLibrary::GetCurrentInteractableObject(OwningPlayer);
+
+	// Check if the CurrentInteractable is valid and proceed with further logic
+	if (IsValid(CurrentInteractable) && CurrentInteractable == this)
+	{
+		if(HoldingInput())
+		{
+			GetWorld()->GetTimerManager().ClearTimer(KeyDownTimer);
+			KeyDownTimer.Invalidate();
+			UClass* ActorClass = CurrentInteractor->GetClass();
+
+			UFunction* InteractionFunc = ActorClass->FindFunctionByName(TEXT("StartInteractionWithObject"));
+			if (InteractionFunc != nullptr)
+			{
+				CurrentInteractable->ProcessEvent(InteractionFunc, this);
+			}
+			
+			else
+			{
+				//do nothing if the function is not found.
+			}
+
+		}
+		GetWorld()->GetTimerManager().ClearTimer(KeyDownTimer);
+		KeyDownTimer.Invalidate();
+	}
+
+}
+
+void UInteractableManager::RemoveInteractionByResponse()
+{
+	if (InteractableResponse == EInteractableResponseType::OnlyOnce || InteractableResponse == EInteractableResponseType::Temporary)
+	{
+		EventRemoveInteraction_Implementation();
+	}
+
+}
+
+void UInteractableManager::FillInteractionWidgetBorder(float Value)
+{
+	if (IsValid(InteractionWidgetRef))
+	{
+		float clampedValue = MapRangeClamped(Value, 0.0f, MaxKeyTimeDown, 0.0f, 1.0);
+		InteractionWidgetRef->SetFillDecimalValue(clampedValue);
+	}
+}
+
+void UInteractableManager::ToggleInteractionWidget(bool Condition)
+{
+	if (IsInteractable)
+	{
+		if (IsInteractable)
+		{
+			if (InteractionWidgetRef)
+			{
+				if (Condition)
+				{
+					InteractionWidgetRef->SetVisibility(ESlateVisibility::Visible);
+				}
+				else
+				{
+					InteractionWidgetRef->SetVisibility(ESlateVisibility::Hidden);
+				}
+
+			}
+		}
+	}
+}
+
+void UInteractableManager::ChangeInteractableValue(bool Increment)
+{
+	if (Increment)
+	{
+		InteractableValue++;
+		if (InteractableValue > InteractableLimitValue)
+		{
+			InteractableValue = 0;
+		}
+	}
+	else
+	{
+		InteractableValue--;
+		if (InteractableValue < 0)
+		{
+			InteractableValue = InteractableLimitValue;
+		}
+	}
+}
+
+void UInteractableManager::ToggleCanBeReInitialized(bool Condition)
+{
+	if (CanBeReInitialized != Condition)
+	{
+		CanBeReInitialized = Condition;
+	}
+}
+
+
+bool UInteractableManager::IsTargetInteractableValue()
+{
+	for (const auto& Pair : AssociatedInteractableActors)
+	{
+		AActor* Key = Pair.Key;
+		int Value = Pair.Value;
+
+		if (Value && Key->FindComponentByClass<UInteractableManager>() && Value == Key->FindComponentByClass<UInteractableManager>()->InteractableValue)
+		{
+			continue;
+		}
+
+		return false;
+	}
+
+	return true;
+}
+
+bool UInteractableManager::GetPressedKeyByActionName(FName InActionName, FKey& Key)
+{
+	UInputSettings* InputSettings = UInputSettings::GetInputSettings();
+	TArray<FInputActionKeyMapping> OutMapping;
+	bool WasPress;
+	int32 LocalInt = 0;
+	int32 Index = 0;
+
+	InputSettings->GetActionMappingByName(InActionName, OutMapping);
+	for (const FInputActionKeyMapping& Element : OutMapping)
+	{
+		WasPress = Cast<APlayerController>(CurrentInteractor)->WasInputKeyJustPressed(Element.Key);
+
+		if (WasPress)
+		{
+			LocalInt = Index;
+			break;
+		}
+
+		Index++;
+	}
+
+	bool LocalBool = OutMapping.IsValidIndex(LocalInt);
+	Key = LocalBool ? OutMapping[LocalInt].Key : FKey();
+
+	return LocalBool;
+}
+
+bool UInteractableManager::HoldingInput()
+{
+	TObjectPtr<AALSCharacter> AlsCharacter = Cast<AALSCharacter>(CurrentInteractor);
+	if (AlsCharacter)
+	{
+		float TimeValue = AlsCharacter->GetAlsController()->GetInputKeyTimeDown(PressedInteractionKey);
+		FillInteractionWidgetBorder(TimeValue);
+		if (TimeValue > MaxKeyTimeDown)
+		{
+			InteractionWidgetRef->SetFillDecimalValue(0.05);
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool UInteractableManager::MashingInput(int32 MashingAmount, float& Output)
+{
+	float LocalFloat = 0.0f;
+	LocalFloat = (1.0f / MashingAmount) + LocalFloat;
+
+	if (LocalFloat > 1)
+	{
+		Output = LocalFloat;
+		Output = 0.0f;
+		return true;
+	}
+	else
+	{
+		Output = LocalFloat;
+	}
+
+	UWorld* World = GetWorld();
+
+	if (World)
+	{
+		MashingKeyRetriggerableTime = this->MashingKeyRetriggerableTime;
+	}
+
+	while (true)
+	{
+		float InRangeValue = FMath::Clamp(LocalFloat, 0.0f, 1.0f);
+
+		if (InRangeValue == LocalFloat)
+		{
+			LocalFloat = (MashingAmount / 1.0f) - LocalFloat;
+			continue;
+		}
+
+		Output = LocalFloat;
+		FPlatformProcess::Sleep(MashingKeyRetriggerableTime);
+	}
+
+	return false;  // This line may not be reached, but it's necessary to avoid compilation warnings
+}
+
+// H File 
+
+
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+
+#include "Components/ActorComponent.h"
+#include "Character/ALSCharacter.h"
+#include "Components/WidgetComponent.h"
+#include "GameFramework/InputSettings.h"
+#include "Kismet/GameplayStatics.h"
+#include "Library/GlobalEnumLibrary.h"
+#include "Components/TimelineComponent.h"
+
+#include <Engine/TargetPoint.h>
+
+#include "InteractableManager.generated.h"
+
+UENUM(BlueprintType)
+enum class EExecutionStatus : uint8
+{
+    Continue,
+    Completed
+};
+
+class UInteractableWidget;
+
+UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
+class ALSV4_CPP_API UInteractableManager : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:	
+	// Sets default values for this component's properties
+	UInteractableManager();
+
+	// The type of input required for interaction
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	EInteractType InputType;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction", Replicated)
+	EInteractableResponseType InteractableResponse;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Interaction")
+	bool CanBeReInitialized;
+
+	// The area in which the interaction can take place
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components")
+	USphereComponent* InteractableArea;
+
+protected:
+	// Called when the game starts
+	virtual void BeginPlay() override;
+
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Main", Replicated)
+	bool IsInteractable = true;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Interaction|Bool")
+	bool DestroyAfterInteract = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Interaction")
+	FText DefaultInteractionText;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Interaction|Tag")
+	FName InteractableTag = "Interactable";
+
+	// List of objects that can be highlighted
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	TArray<UPrimitiveComponent*> HighlightableObjects;
+
+	// A map of associated interactable actors
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TMap< AActor*, int > AssociatedInteractableActors;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Interaction|Tag")
+	FName DestroyableTag = "None";
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction")
+	bool AlreadyInteracted = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float MaxKeyTimeDown = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float MashingKeyRetriggerableTime = 0.2f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere,Category = "Interaction")
+	TObjectPtr<UInteractableWidget> InteractionWidgetRef;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Interaction")
+	FTimerHandle KeyDownTimer;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Replicated, Category = "Interaction")
+	int InteractableValue = 0;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Interaction")
+	int InteractableTarget = 0;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Interaction")
+	int  InteractableLimitValue = 0;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Interaction")
+	bool CheckForAssociatedActors = false;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Interaction")
+	bool RemoveAssociatedInteractablesOnComplete = false;
+
+	// The key that was pressed for interaction
+	UPROPERTY(BlueprintReadWrite, Category = "Interaction")
+	FKey PressedInteractionKey;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Interaction|MoveableObject")
+	TObjectPtr<ATargetPoint>  DestinationPoint;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Interaction|MoveableObject")
+	float TravelDuration = 0.0f;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Interaction|MoveableObject")
+	float TimelinePosition = 0.0f;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Interaction|MoveableObject")
+	TEnumAsByte<ETimelineDirection::Type> TimelineDirection;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Interaction|Door")
+	FString KeyID;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Interaction|Door")
+	bool RemoveItemAfterUnlock = false;
+
+	UPROPERTY(BlueprintReadOnly)
+	TObjectPtr<AActor> CurrentInteractor;
+
+	// The widget class used for interaction
+	UPROPERTY(EditAnywhere, Category = "MyWidget")
+	TSubclassOf<UUserWidget> WidgetClass;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Components")
+	TObjectPtr<UWidgetComponent> InteractionWidget;
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void ToggleIsInteractable(bool Condition);
+
+public:
+	// Called every frame
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
+	//Before Interaction
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction|Events")
+	void EventInitialize();
+
+	// Set up references for interactable components
+	UFUNCTION(BlueprintCallable)
+	void SetupInteractableReferences(USphereComponent* InteractableAreas, UWidgetComponent* InteractionWidgets, TSet<UPrimitiveComponent*> HighlightableObject);
+
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction|Events")
+	void EventToggleHighlight(bool Highlight, AActor* Interactor);
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction|Events")
+	void EventPreInteraction(AActor* Interactor);
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void SetWidgetLocalOwner(AALSPlayerController* OwnerController);
+
+	// On Interaction
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void EventInteraction(AActor* Interactor, bool WasHeld);
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void EventClientInteraction(AActor* Interactor, bool WasHeld);
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void EventAssociatedActorInteraction(AActor* Interactor);
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void EventCheckForInteractionWithAssociate(AActor* Interactor);
+
+
+	//After Interaction
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void EventEndInteraction(AActor* Interactor);
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void EventClientEndInteraction(AActor* Interactor);
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void EventAssociatedActorEndInteraction();
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction", NetMulticast, Reliable)
+	void EventRemoveInteraction();
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void EventClientRemoveInteraction();
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void EventRe_Initialize();
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void  EventRe_InitializeAssociatedActors();
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void EventGameLoaded();
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void EventMultiplePress();
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void EventDurationPress();
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void IsKeyDown();
+
+
+
+	//Other
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void RemoveInteractionByResponse();
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void FillInteractionWidgetBorder(float Value);
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void ToggleInteractionWidget(bool Condition);
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void ChangeInteractableValue(bool Increment);
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void ToggleCanBeReInitialized(bool Condition);
+
+	//Macro
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	bool IsTargetInteractableValue();
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	bool GetPressedKeyByActionName(FName InActionName, FKey& Key);
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	bool HoldingInput();
+
+	UFUNCTION(BlueprintCallable, Category = "Mashing Input")
+	bool MashingInput(int32 MashingAmount, float& Output);
+
+};

@@ -1,0 +1,336 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Interactable/InteractableParent.h"
+
+#include "Components/InteractionManager.h"
+#include "Components/InteractableManager.h"
+#include "Components/WidgetComponent.h"
+#include "Character/ALSBaseCharacter.h"
+#include "Character/ALSCharacter.h"
+#include "Character/ALSCharacter.h"
+#include "Interfaces/InteractableInterface.h"
+
+
+
+// Sets default values
+AInteractableParent::AInteractableParent()
+{
+    // Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+    PrimaryActorTick.bCanEverTick = true;
+    FTransform NewTransform;
+    Scene = CreateDefaultSubobject<USceneComponent>(TEXT("Scene"));
+    RootComponent = Scene;
+
+    SkeletalMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("SkeletalMesh"));
+    SkeletalMesh->SetupAttachment(RootComponent);
+
+    StaticMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMesh"));
+    StaticMesh->SetupAttachment(RootComponent);
+
+    InteractableArea = CreateDefaultSubobject<USphereComponent>(TEXT("InteractableArea"));
+    InteractableArea->SetSphereRadius(300.f);
+    InteractableArea->SetupAttachment(RootComponent);
+
+    InteractionWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("InteractionWidget"));
+    InteractionWidget->SetWidgetSpace(EWidgetSpace::Screen);
+    InteractionWidget->SetupAttachment(RootComponent);
+
+    InteractableController = CreateDefaultSubobject<UInteractableManager>(TEXT("InteractableComponent"));
+
+}
+
+// Called when the game starts or when spawned
+void AInteractableParent::BeginPlay()
+{
+    Super::BeginPlay();
+
+    SkeletalMesh->SetVisibility(!IsValid(StaticMesh->GetStaticMesh()));
+    SetupUI();
+    SetupTrigger();
+    SetupMesh();
+    InteractionWidget->SetVisibility(false, false);
+    InteractableArea->OnComponentBeginOverlap.AddDynamic(this, &AInteractableParent::OnOverlapBegin);
+    InteractableArea->OnComponentEndOverlap.AddDynamic(this, &AInteractableParent::OnOverlapEnd);
+}
+
+void AInteractableParent::SetupTrigger()
+{
+    InteractableArea->SetSphereRadius(TriggerRaduis);
+    InteractableArea->SetRelativeLocation(TriggerLocation);
+}
+
+void AInteractableParent::SetupUI()
+{
+    InteractionWidget->SetRelativeLocation(UILocation);
+}
+
+void AInteractableParent::SetupMesh()
+{
+    if (NewMesh)
+    {
+        StaticMesh->SetStaticMesh(NewMesh);
+        StaticMesh->SetRelativeTransform(MeshTransform);
+    }
+}
+
+// Called every frame
+void AInteractableParent::Tick(float DeltaTime)
+{
+    Super::Tick(DeltaTime);
+
+}
+
+void AInteractableParent::BPIInitialize()
+{
+    MeshSet.Add(SkeletalMesh);
+    MeshSet.Add(StaticMesh);
+    InteractableController->SetupInteractableReferences(InteractableArea, InteractionWidget, MeshSet);
+}
+
+bool AInteractableParent::InteractionHandle(AActor* Actor, bool WasHeld)
+{
+    if (Actor)  // check if Actor is not null
+    {
+        Interactors = Cast<AALSCharacter>(Actor);
+        if (Interactors)
+        {
+            if (WasHeld)
+            {
+                return true;
+            }
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Actor is null in InteractionHandle"));
+    }
+
+    return false;
+}
+
+void AInteractableParent::BPIInteraction(AActor* Interactor, bool bHeld)
+{
+    InteractionHandle(Interactor, bHeld);
+
+}
+
+void AInteractableParent::BPIClientStartInteraction(AActor* Interactor, bool WasHeld)
+{
+}
+
+void AInteractableParent::PreInteraction(AActor* Interactor)
+{
+    // Place anything that you want to happen on Pre interaction
+
+}
+
+void AInteractableParent::BPIClientPreInteraction(AActor* Interactor)
+{
+
+}
+
+void AInteractableParent::BPIEndInteraction(AActor* Interactor)
+{
+    // Place anything that you want to happen on end interaction
+
+}
+
+void AInteractableParent::BPIClientEndInteraction(AActor* Interactor)
+{
+}
+
+void AInteractableParent::BPIRemoveInteraction()
+{
+    // Place anything that you want to happen on remove interaction
+
+}
+
+void AInteractableParent::BPIGameLoad()
+{
+    // Place anything that you want to happen on game load
+
+}
+
+
+void AInteractableParent::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+    UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+    
+    // Check if the overlapping actor has an Interact component
+    UInteractionManager* InteractComponent = OtherActor->FindComponentByClass<UInteractionManager>();
+    if (InteractComponent)
+    {
+        if (OtherActor)
+        {
+            AALSBaseCharacter* CastCharacter = Cast<AALSBaseCharacter>(OtherActor);
+            if (CastCharacter)
+            {
+                CastCharacter->BPIAddInteraction(InteractableController);
+            }
+        }
+
+    }
+}
+
+void AInteractableParent::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+    UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+{
+    bool valid = false;
+    // Check if the overlapping actor has an Interact component
+    UInteractionManager* InteractComponent = OtherActor->FindComponentByClass<UInteractionManager>();
+    if (IsValid(InteractComponent))
+    {
+        if (OtherActor)
+        {
+            AALSBaseCharacter* CastCharacter = Cast<AALSBaseCharacter>(OtherActor);
+            if (IsValid(CastCharacter))
+            {
+
+                CastCharacter->BPIRemoveInteraction(InteractableController, valid);
+
+            }
+        }
+    }
+}
+
+// H File 
+
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "Components/SphereComponent.h"
+#include "Interfaces/InteractableInterface.h"
+
+#include "InteractableParent.generated.h"
+
+
+class AALSCharacter;
+class AALSBaseCharacter;
+class UInteractableManager;
+class UWidgetComponent;
+
+UCLASS()
+class ALSV4_CPP_API AInteractableParent : public AActor, public IInteractable
+{
+	GENERATED_BODY()
+
+public:
+	// This class is the parent class for all interactable objects in the game.
+	// Interactable objects are objects that a character can interact with,
+	// such as doors, switches, etc.
+	AInteractableParent();
+
+	// The manager responsible for handling interactions for this object.
+	// This is a component attached to this actor that handles interactions.
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UInteractableManager* InteractableController;
+
+	// The manager responsible for handling interactions for this object.
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	USphereComponent* InteractableArea;
+
+	// The location of the UI in relation to this object.
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FVector UILocation {0.0f, 0.0f, 100.0f};
+
+	// The transform of the mesh for this object.
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FTransform MeshTransform;
+
+	// The radius of the trigger for interactions.
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	float TriggerRaduis{100.0f};
+
+	// The radius of the trigger for interactions.
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FVector TriggerLocation {0.0f, 0.0f, 0.0f};
+
+
+	// The static mesh to be used for this object.
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UStaticMesh* NewMesh;
+
+protected:
+
+	// Called when the game starts or when spawned
+	virtual void BeginPlay() override;
+
+	// The skeletal mesh component for this object, if it has one.
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	USkeletalMeshComponent* SkeletalMesh;
+
+	// The static mesh component for this object.
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UStaticMeshComponent* StaticMesh;
+
+	// The root component of this object for attaching other components.
+	UPROPERTY(BlueprintReadWrite)
+	USceneComponent* Scene;
+
+	// The widget component for displaying interaction options.
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UWidgetComponent* InteractionWidget;
+
+	// A set of all mesh components for this object.
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	TSet<UPrimitiveComponent*> MeshSet;
+
+	void SetupTrigger();
+
+	void SetupUI();
+
+	//This will set Mesh 
+	void SetupMesh();
+
+
+public:
+
+	// Called every frame
+	virtual void Tick(float DeltaTime) override;
+
+	virtual void BPIInitialize() override;
+
+	// Handles Interactions
+	// This function is called to handle an interaction from a character.
+	// The 'Actor' parameter is the character that is trying to interact with this object.
+	// The 'WasHeld' parameter is true if the interaction button was held down, and false if it was just pressed and released
+	bool InteractionHandle(AActor* Actor, bool WasHeld);
+
+	//anything that you want to happen on  interaction
+	virtual void BPIInteraction(AActor* Interactor, bool bHeld) override;
+
+	virtual void BPIClientStartInteraction(AActor* Interactor, bool WasHeld) override;
+
+	//anything that you want to happen on Pre interaction
+	void PreInteraction(AActor* Interactor) ;
+
+	virtual void BPIClientPreInteraction(AActor* Interactor) override;
+
+	//anything that you want to happen on end interaction
+	virtual void BPIEndInteraction(AActor* Interactor) override;
+
+	virtual void BPIClientEndInteraction(AActor* Interactor) override;
+
+	//anything that you want to happen on remove interaction
+	virtual void BPIRemoveInteraction() override;
+
+	//anything that you want to happen on game load
+	virtual void BPIGameLoad() override;
+
+protected:
+	UFUNCTION()
+	void OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+			int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+	UFUNCTION()
+	void OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+
+	// The characters that this object interacts with.
+	UPROPERTY(VisibleAnywhere)
+	AALSBaseCharacter* Interactors;
+};
+

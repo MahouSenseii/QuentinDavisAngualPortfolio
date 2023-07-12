@@ -1,0 +1,25 @@
+.pdf-download-btn{
+    position: absolute;
+    justify-content: center;
+    top: 90%;
+    font-size: 20px;
+    background-color: darkgoldenrod;
+    border-radius: 90%;
+    padding: 20px;
+}
+@media (max-width: 1368px){
+    .pdf-download-btn{top: 80%;}
+    .pdf-viewer{top: 10%; }
+}
+
+#project{
+    display: flex;
+    background-color: #000000;
+    background-image: linear-gradient(rgba(0, 0, 0, 0.7),rgba(4,9,30,0.7)), url(/assets/Images/Controller2.jpg);
+    background-repeat: no-repeat;
+    background-position: center;
+    justify-content: center;
+    position: relative;
+    align-items: center;
+    min-height: 100vh;
+}

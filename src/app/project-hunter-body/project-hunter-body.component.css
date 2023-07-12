@@ -1,0 +1,136 @@
+.main{
+    width: 100%;
+    background-color: #000000;
+    background-image: linear-gradient(rgba(0, 0, 0, 0.7),rgba(4,9,30,0.7)), url(/assets/Images/Controller3.jpg);
+    background-repeat: no-repeat;
+    background-position: center;
+    position: relative;
+    align-items: center;
+    height: 240vh;
+}
+
+.col-md-6
+{
+  width: 100%;
+}
+.container
+{
+  width: 1080px;
+  padding-top: 200px;
+}
+
+.text-box-header
+{
+  color: darkgoldenrod;
+  padding-left: 10%;
+  padding-bottom: 80px;
+  text-decoration: underline;
+
+  display: block;
+}
+.row
+{
+  justify-content: center;
+}
+
+.game-header
+{
+  justify-content: center;
+  padding-left: 30%;
+  
+}
+
+.text-box-header
+{
+  font-size:  60px;
+}
+
+.image-wrapper {
+  display: row;
+  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+
+
+
+.image-wrapper .image-info {
+  margin-top: 20px;
+  
+}
+
+.image1, .image3
+{
+ height: auto;
+  border-style: solid;
+  border-width: 5px;
+  border-radius: 15px;
+  border-color: white;
+}
+.image3
+{
+  flex-wrap: wrap;
+  width: 50%;
+}
+
+.caption1
+{
+  color: darkgoldenrod;
+  text-align: left;
+  position: relative;
+  left: 70%;
+  text-align: left;
+}
+
+.caption2
+{
+  color: darkgoldenrod;
+  position: relative;
+  left: -20%;
+  text-align: left;
+
+}
+
+.description1
+{
+  position: relative;
+  color: #fff;
+  left: 70%;
+  text-align: left;
+  padding-bottom: 20%;
+  font-size: 25px;
+}
+
+.description2
+{
+  color: #fff;
+  text-align: right;
+  position: relative;
+  left: -20%;
+  text-align: left;
+  padding-bottom: 20%;
+  font-size: 25px;
+
+}
+
+.vscode-iframe { 
+  height: 400px;
+  width: 100%;
+  color: #ffff;
+  text-align: left;
+  overflow: auto;
+  white-space: pre-wrap; 
+  padding-left: 10px;
+}
+
+@media (max-width: 1368px){  
+  .main{height: 280vh;  width: 100%;}
+  .description1{ width: 100%; font-size: 25px; padding-bottom: 40%; left: 30%; position: revert;} 
+  .description2{   width: 100%;  font-size: 25px; padding-bottom: 40%; left: 50%; position: revert;}
+  .container { max-width: 100%;}
+  .caption1{left: 30%; position: revert;  width: 100%; }
+  .caption2{left: 30%; position: revert;  width: 100%; }
+  .image3 {width: 50%;}
+}

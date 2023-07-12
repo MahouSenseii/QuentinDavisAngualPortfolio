@@ -1,0 +1,332 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Components/InteractionManager.h"
+
+#include "Math/Vector.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Interactable/InteractableParent.h"
+#include "Components/InteractableManager.h"
+#include "Components/SphereComponent.h"
+#include "Character/ALSPlayerCameraManager.h"
+#include "Character/ALSCharacter.h"
+
+// Sets default values for this component's properties
+UInteractionManager::UInteractionManager()
+{
+	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
+	// off to improve performance if you don't need them.
+	PrimaryComponentTick.bCanEverTick = true;
+
+	// ...
+}
+
+
+// Called when the game starts
+void UInteractionManager::BeginPlay()
+{
+	Super::BeginPlay();
+	OwnerCharacter = Cast<AALSCharacter>(GetOwner());
+	if (OwnerCharacter)
+	{
+		FString CharacterName = OwnerCharacter->GetName();
+		UE_LOG(LogTemp, Warning, TEXT("OwnerCharacter name: %s"), *CharacterName);
+	}
+	// ...
+
+}
+
+
+// Called every frame
+void UInteractionManager::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	// ...
+}
+
+
+void UInteractionManager::UpdateInteraction()
+{
+	if (ShouldUpdateInteraction())
+	{
+		SetCurrentInteraction(nullptr);
+		AssignCurrentInteraction();
+	}
+}
+
+void UInteractionManager::SetCurrentInteraction(UInteractableManager* NewInteractable)
+{
+	if (IsValid(NewInteractable))
+	{
+		if (NewInteractable != CurrentInteractable)
+		{
+			if (IsValid(CurrentInteractable) && (CurrentInteractable != NULL))
+			{
+				RemoveInteractionFromCurrent(CurrentInteractable);
+			}
+			else
+			{
+				CurrentInteractable = NewInteractable;
+				AddInteraction(CurrentInteractable);
+			}
+		}
+		else
+		{
+			CurrentInteractable = NewInteractable;
+			AddInteraction(CurrentInteractable);
+		}
+	}
+	else
+	{
+		if (CurrentInteractable)
+		{
+			RemoveInteractionFromCurrent(CurrentInteractable);
+			CurrentInteractable = nullptr;
+
+		}
+	}
+}
+
+void UInteractionManager::AddInteraction(UInteractableManager* Interactable)
+{
+	if (IsValid(Interactable))
+	{
+		RemoveInteractionFromCurrent(nullptr);
+		Interactable->EventToggleHighlight(true, OwnerCharacter->Controller);
+		CurrentInteractable = Interactable;
+	}
+}
+
+
+bool UInteractionManager::BPIAddInteraction(UInteractableManager* NewInteractable)
+{
+	if (NewInteractable)
+	{
+	InteractableList.AddUnique(NewInteractable);
+	}
+	return true;
+}
+
+
+bool UInteractionManager::BPIRemoveInteraction(UInteractableManager* Interactable, bool& WasValid)
+{
+	if (IsValid(Interactable))
+	{
+		if (InteractableList.Remove(Interactable))
+		{
+			if (InteractableList.Num() > 0) {
+				UInteractableManager* FoundInteractbleManager = Cast<UInteractableManager>(InteractableList[0]);
+				if (FoundInteractbleManager != nullptr) {
+
+					WasValid = true;
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+void UInteractionManager::MaxOfFloatArray(const TArray<float>& FloatArray, float& OutMaxValue, int32& OutMaxIndex)
+{
+	OutMaxValue = -FLT_MAX;
+	OutMaxIndex = -1;
+	for (int32 Index = 0; Index < FloatArray.Num(); ++Index)
+	{
+		if (FloatArray[Index] > OutMaxValue)
+		{
+			OutMaxValue = FloatArray[Index];
+			OutMaxIndex = Index;
+		}
+	}
+}
+
+void UInteractionManager::AssignCurrentInteraction()
+{
+	TArray<float> Dots;
+	for (UInteractableManager* Element : InteractableList)
+	{
+		FVector TempAreaLocation = Element->InteractableArea->GetComponentLocation();
+		FVector TempOwnerRootLocation = GetOwner()->GetRootComponent()->GetComponentLocation();
+		if (OwnerCharacter->GetCamera())
+		{
+			FVector OwnerForwardVector = OwnerCharacter->GetCamera()->GetActorForwardVector();
+			const float Tolerance = 0.0001f;
+			FVector NormalizedReturn = (TempAreaLocation - TempOwnerRootLocation).GetSafeNormal(Tolerance);
+
+			float DoProductResult = FVector::DotProduct(NormalizedReturn, OwnerForwardVector);
+			Dots.Add(DoProductResult);
+		}
+	}
+	float MaxValue;
+	int MaxIndex;
+
+	MaxOfFloatArray(Dots, MaxValue, MaxIndex);
+
+	if (MaxValue >= InteractThreshold)
+	{
+		UInteractableManager* TempManager = InteractableList[MaxIndex];
+		if (IsValid(TempManager))
+		{
+			SetCurrentInteraction(TempManager);
+		}
+	}
+	else
+	{
+		SetCurrentInteraction(nullptr);
+	}
+}
+
+void UInteractionManager::RemoveInteractionFromCurrent(UInteractableManager* Interactable)
+{
+	if (Interactable)
+	{
+		if (OwnerCharacter)
+		{
+			if (CurrentInteractable)
+			{
+				CurrentInteractable->EventToggleHighlight(false, OwnerCharacter->Controller);
+				AActor* Owner = GetOwner();
+				if (Owner)
+				{
+					// Cast the owner to ICharacterInterface
+					IObjectInteraction* OwnerAsInterface = Cast<IObjectInteraction>(Owner);
+					if (OwnerAsInterface)
+					{
+						OwnerAsInterface->EndInteractionWithObject(CurrentInteractable);
+					}
+				}
+			}
+		}
+	}
+}
+
+bool UInteractionManager::ShouldUpdateInteraction()
+{
+	if (IsValid(OwnerCharacter))
+	{
+		return (!OwnerCharacter->GetCharacterMovement()->IsFalling()) && (InteractableList.Num() > 0);
+	}
+	return false;
+}
+
+void UInteractionManager::StartInteractionWithObject(UInteractableManager* Interactable)
+{
+	// No implementation needed
+}
+
+void UInteractionManager::EndInteractionWithObject(UInteractableManager* Interactable)
+{
+	// No implementation needed
+}
+
+void UInteractionManager::RemoveInteractionFromObject(UInteractableManager* Interactable)
+{
+	// No implementation needed
+}
+
+void UInteractionManager::InitializeInteractionWithObject(UInteractableManager* Interactable)
+{
+	// No implementation needed
+}
+
+
+// H file 
+
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "Interfaces/CharacterInterface.h"
+#include "Interfaces/ObjectInteraction.h"
+
+#include "InteractionManager.generated.h"
+
+class AALSCharacter;
+class UInteractableManager;
+
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
+class ALSV4_CPP_API UInteractionManager : public UActorComponent, public ICharacterInterface, public IObjectInteraction
+{
+	GENERATED_BODY()
+
+public:
+	// Sets default values for this component's properties
+	UInteractionManager();
+
+	// The threshold for interaction
+	UPROPERTY()
+	float InteractThreshold = 0.0f;
+
+	// The threshold for interaction
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<AALSCharacter> OwnerCharacter;
+
+
+
+protected:
+
+	// Called when the game starts
+	virtual void BeginPlay() override;
+
+	// The current interactable object
+	UPROPERTY(BlueprintReadWrite)
+	UInteractableManager* CurrentInteractable;
+
+	// List of interactable objects
+	UPROPERTY(BlueprintReadWrite)
+	TArray<UInteractableManager*> InteractableList;
+
+public:
+	// Called every frame
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
+	UFUNCTION(BlueprintCallable, Category ="Interaction")
+	UInteractableManager* GetCurrentInteractable() { return CurrentInteractable; }
+
+	// Update the current interaction
+	UFUNCTION(BlueprintCallable, Category = "InteractionControl")
+	void UpdateInteraction();
+
+	// Set the current interaction
+	UFUNCTION(BlueprintCallable, Category = "InteractionControl")
+	void SetCurrentInteraction(UInteractableManager* NewInteractable);
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void AddInteraction(UInteractableManager* Interactable);
+
+	// Add a new interaction to the list
+	UFUNCTION(BlueprintCallable, Category = "InteractionControl")
+	virtual bool BPIAddInteraction(UInteractableManager* Interactable);
+
+	UFUNCTION(BlueprintCallable, Category = "InteractionControl")
+	virtual bool BPIRemoveInteraction(UInteractableManager* Interactable, bool& WasValid);
+
+	// Find the maximum value in a float array and its index
+	UFUNCTION(BlueprintCallable, Category = "Math Utils")
+	void MaxOfFloatArray(const TArray<float>& FloatArray, float& OutMaxValue, int32& OutMaxIndex);
+
+	// Assign the current interaction
+	UFUNCTION(BlueprintCallable, Category = "Interactable")
+	void AssignCurrentInteraction();
+
+	// Remove an interaction from the current interaction
+	UFUNCTION(BlueprintCallable, Category = "InteractionControl")
+	void RemoveInteractionFromCurrent(UInteractableManager* Interactable);
+
+	// Check if the interaction should be updated
+	UFUNCTION(BlueprintCallable, Category = "InteractionControl")
+	bool ShouldUpdateInteraction();
+
+	virtual void StartInteractionWithObject(UInteractableManager* Interactable) override;
+	virtual void EndInteractionWithObject(UInteractableManager* Interactable) override;
+	virtual void RemoveInteractionFromObject(UInteractableManager* Interactable) override;
+	virtual void InitializeInteractionWithObject(UInteractableManager* Interactable) override;
+
+private:
+
+
+};
