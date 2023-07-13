@@ -6,7 +6,7 @@
     background-position: center;
     position: relative;
     align-items: center;
-    height: 240vh;
+    height: auto;
 }
 
 .col-md-6
@@ -80,7 +80,7 @@
   color: darkgoldenrod;
   text-align: left;
   position: relative;
-  left: 70%;
+  left: 60%;
   text-align: left;
 }
 
@@ -97,7 +97,7 @@
 {
   position: relative;
   color: #fff;
-  left: 70%;
+  left: 60%;
   text-align: left;
   padding-bottom: 20%;
   font-size: 25px;
@@ -123,6 +123,7 @@
   overflow: auto;
   white-space: pre-wrap; 
   padding-left: 10px;
+  font-size: 25px;
 }
 
 @media (max-width: 1368px){  

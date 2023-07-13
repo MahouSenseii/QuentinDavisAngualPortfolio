@@ -25,7 +25,7 @@
     text-align: center;
     align-items: center;
     font-size: clamp(2rem, 8vw - 2rem, 60px);
-    padding-left: 15px;
+    padding-left: 5px;
 }
 
 .footer p {

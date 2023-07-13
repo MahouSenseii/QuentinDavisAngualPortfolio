@@ -40,7 +40,6 @@ p{
 }
 .row{   
     display: flex;
-    justify-content: space-between;
 }
 
 .offer-col{
@@ -191,5 +190,9 @@ h4{
     .col-md-4 {
         flex: 0 0 auto;
          width: 100%;
+    }
+
+    .row{
+        --bs-gutter-x: 0.0rem;
     }
 }

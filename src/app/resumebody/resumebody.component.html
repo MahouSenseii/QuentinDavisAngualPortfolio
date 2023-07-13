@@ -1,7 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Resume</title>
+</head>
+<body>
 <main class="d-flex flex-column align-items-center justify-content-center bg-dark min-vh-100" id="project">
     <div class="pdf-container">
       <pdf-viewer class="pdf-viewer" [src]="pdfSrc" [render-text]="true" style="width: 800px; height: 1000px"></pdf-viewer>
     </div>
     <button class="pdf-download-btn" (click)="downloadPDF()">Download PDF</button>
   </main>
-  
+</body>
+</html>
